@@ -1,7 +1,7 @@
 // script-wide variables
 
 // words to appear on screen
-var _words = [] 
+var _words = []  // words[i] is a lookup for word.id 
 var _locked = false;
 var _xOffset = 0.0;
 var _yOffset = 0.0;
@@ -9,19 +9,14 @@ var _numwords = 0;
 
 // score calculation
 var _ans = ""; // save and fill in when loading corpus
-var _score = 0; 
+var _score = 0.05; 
 
 // canvas setup
-let canvX = 1200;
-let canvX_start = 400;
-let canvY = 700;
+let _canvX = 1200;
+let _canvX_start = 400;
+let _canvY = 700;
 
-// initialization functions
-function createBackground() {
-  fill('#FFE5CC');
-  rect(canvX_start + 60, 0, canvX - canvX_start, canvY);
-}
-
+// initialization 
 function createWords() {
 
   let wrds = aliceWords();
@@ -30,11 +25,11 @@ function createWords() {
 
   for (let i = 0; i < _numwords; i++) {
 
-    let x = random(0, canvX_start);
-    let y = random(10, canvY-30);
+    let x = random(0, _canvX_start);
+    let y = random(10, _canvY-30);
     let name = wrds[i];
 
-    _words.push(new Word(x, y, name));
+    _words.push(new Word(x, y, name, i));
   }
 
 }
@@ -42,11 +37,11 @@ function createWords() {
 // feature functionality
 function findWord(x, y) {
   for (let i = 0; i < _numwords; i++) {
-    let currWord = words[i];
-    if (x > words[i].x &&
-      x < words[i].x + words[i].w &&
-      y > words[i].y &&
-      y < words[i].y + words[i].h) {
+    let currWord = _words[i];
+    if (x > _words[i].x &&
+      x < _words[i].x + _words[i].w &&
+      y > _words[i].y &&
+      y < _words[i].y + _words[i].h) {
       return currWord;
     }
 
@@ -56,54 +51,113 @@ function findWord(x, y) {
 }
 
 function readWords() {
-    // TODO create dictionaries for x and y coordinates of each word 
-  // isolate rows (loop through ys, set starty = first y seen, then go 30 at a time)
-  // then go through row by row
-  usergen = [];
+
+  // create dictionary for y coordinates of each word to read
+  let yDict = {};
+  for (let i = 0; i < _numwords; i++) {
+    let currWord = _words[i];
+    if (currWord.x > _canvX_start + 60){  // only read in relevant region
+      yDict[i] = currWord.y;
+
+    }
+  }
+
+  // sort
+  sortedY = sortOnValues(yDict);
+
+  // if there are no words to analyze
+  if (sortedY.length == 0) {
+    return ""
+  }
+
+  console.log(sortedY.length);
+
+  // isolate rows
+  let startY = sortedY[0][1]; // smallest y value seen
+  // then go through row by row, moving 30 y at a time
+  let usergen = ""; // stores the read 
+  let rownum = 0;
+  for (let y = startY; y < _canvY; y = y + 30) {
+
+    // find all words in current row
+    let currRowWords = {}
+    // let curr = 0; // current word in the row
+
+    for (let i = 0; i < sortedY.length; i++) {
+      if (sortedY[i][1] < y + 30 && sortedY[i][1] >= y) {
+        currRowWords[parseInt(sortedY[i][0])] = _words[parseInt(sortedY[i][0])].x;
+      } 
+    }
+
+    if (Object.keys(currRowWords).length == 0) {
+      continue;
+    }
+    console.log(rownum);
+    console.log(Object.keys(currRowWords));
+
+    // sort words in current row by X
+    sortedRow = sortOnValues(currRowWords);
+    console.log(sortedRow);
+    let rowText = "";
+    for (let i = 0; i < sortedRow.length; i++) {
+      currWordValue = _words[sortedRow[i][0]].name;
+      rowText = rowText.concat(" ")
+      rowText = rowText.concat(currWordValue);
+    }
+
+    usergen = usergen.concat(rowText);
+
+    rownum = rownum + 1;
+  }
+  
+  console.log(usergen);
   return usergen;
 }
 
 function showSimilarity() {
   readSequence = readWords(); 
   _score = compareTwoStrings(readSequence, _ans); // update similarity score
-  // todo: map color to similarity
-  // todo: change fill
+  // map color to similarity and change background
+  let new_fill = 'hsl(' + Math.floor(_score*240) + ',50%,80%)';
+  fill(new_fill);
+  rect(_canvX_start + 60, 0, _canvX - _canvX_start, _canvY);
 }
 
 // main p5js display functions
 function setup() {
-  createCanvas(canvX, canvY);
+  noLoop();
+  createCanvas(_canvX, _canvY);
   createWords();
 }
 
 function draw() {
 
+  // noLoop();
   clear();
-  createBackground();
+
+  showSimilarity();
 
   for (let i = 0; i < _numwords; i++) {
     _words[i].display();
   }
 
-  showSimilarity();
-
   textAlign(LEFT);
   fill(0);
-
-  text("todo fill in text here", 20, 20);
+  text("reconstruct the sentence!", 20, 20);
 
 }
 
 // main word class
 class Word {
 
-  constructor(x, y, name) {
+  constructor(x, y, name, id) {
     this.x = x;
     this.y = y;
     this.w = 60.0;
     this.h = 20.0;
 
     this.name = name;
+    this.id = id;
 
   }
 
@@ -121,6 +175,7 @@ class Word {
 // for moving around individual tiles
 function mousePressed() {
 
+  loop();
   let word = findWord(mouseX, mouseY);
 
   if (word != null) {
@@ -151,28 +206,35 @@ function mouseDragged() {
 }
 
 function mouseReleased() {
+  noLoop();
   _locked = false;
 }
 
 // utils 
-// use to access sorted x-locations of word in readWords
-function sortOnKeys(dict) {
+// use to access sorted locations of word in readWords
 
-  var sorted = [];
-  for(var key in dict) {
-      sorted[sorted.length] = key;
-  }
-  sorted.sort();
-
-  var tempDict = {};
-  for(var i = 0; i < sorted.length; i++) {
-      tempDict[sorted[i]] = dict[sorted[i]];
+function sortOnValues(dict) {
+  let size = Object.keys(dict).length;
+  if (size == 0) {
+    return []
   }
 
-  return tempDict;
+  // console.log(size);
+  var items = Object.keys(dict).map(function(key) {
+    return [key, dict[key]];
+  });
+  
+  // Sort the array based on the second element
+  items.sort(function(first, second) {
+    return second[1] - first[1];
+  });
+
+  return items;
+
 }
 
-// corpuses
+// corpuses 
+// TODO add other corpuses (kafka?)
 
 function choose_words(sentences) {
   n_words = 0;
@@ -194,7 +256,10 @@ function choose_words(sentences) {
   }
 
   for (let i = 0; i < seen_sentences.length; i++) {
-    _ans = _ans.concat(sentences[i]); // full sentence string
+    if (i > 0) {
+      _ans = _ans.concat(" ")
+    }
+    _ans = _ans.concat(sentences[seen_sentences[i]]); // full sentence string
   }
 
   // returns list of words
@@ -238,6 +303,7 @@ function aliceWords() { // todo: prune these so they make grammatical sense
 
 // string similarity -- from https://github.com/aceakash/string-similarity/blob/master/compare-strings.js
 function compareTwoStrings(first, second) {
+
 	first = first.replace(/\s+/g, '')
 	second = second.replace(/\s+/g, '')
 
