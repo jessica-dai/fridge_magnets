@@ -2,7 +2,7 @@ import markovify
 # import nltk
 # from nltk.corpus import treebank
 
-filenames = ['alice.txt']
+filenames = ['kafka.txt']
 
 for filename in filenames:
 
