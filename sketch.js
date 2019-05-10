@@ -8,6 +8,7 @@ var _yOffset = 0.0;
 var _numwords = 0;
 
 // score calculation
+var _usergen = "";
 var _ans = ""; // save and fill in when loading corpus
 var _score = 0.05; 
 
@@ -50,73 +51,28 @@ function findWord(x, y) {
   return null;
 }
 
-function readWords() {
-
-  // create dictionary for y coordinates of each word to read
-  let yDict = {};
-  for (let i = 0; i < _numwords; i++) {
-    let currWord = _words[i];
-    if (currWord.x > _canvX_start + 60){  // only read in relevant region
-      yDict[i] = currWord.y;
-
+function readPoem() {
+  _usergen = ""
+  let seen_words = []
+  for (let y = 0; y < _canvY; y++) {
+    for (let x = _canvX_start + 60; x < _canvX; x++) {
+      let foundWord = findWord(x, y);
+      if (foundWord !== null && seen_words.indexOf(foundWord) == -1) {
+        _usergen = _usergen.concat(" ");
+        _usergen = _usergen.concat(foundWord.name);
+        seen_words.push(foundWord);
+      }
     }
   }
 
-  // sort
-  sortedY = sortOnValues(yDict);
-
-  // if there are no words to analyze
-  if (sortedY.length == 0) {
-    return ""
-  }
-
-  console.log(sortedY.length);
-
-  // isolate rows
-  let startY = sortedY[0][1]; // smallest y value seen
-  // then go through row by row, moving 30 y at a time
-  let usergen = ""; // stores the read 
-  let rownum = 0;
-  for (let y = startY; y < _canvY; y = y + 30) {
-
-    // find all words in current row
-    let currRowWords = {}
-    // let curr = 0; // current word in the row
-
-    for (let i = 0; i < sortedY.length; i++) {
-      if (sortedY[i][1] < y + 30 && sortedY[i][1] >= y) {
-        currRowWords[parseInt(sortedY[i][0])] = _words[parseInt(sortedY[i][0])].x;
-      } 
-    }
-
-    if (Object.keys(currRowWords).length == 0) {
-      continue;
-    }
-    console.log(rownum);
-    console.log(Object.keys(currRowWords));
-
-    // sort words in current row by X
-    sortedRow = sortOnValues(currRowWords);
-    console.log(sortedRow);
-    let rowText = "";
-    for (let i = 0; i < sortedRow.length; i++) {
-      currWordValue = _words[sortedRow[i][0]].name;
-      rowText = rowText.concat(" ")
-      rowText = rowText.concat(currWordValue);
-    }
-
-    usergen = usergen.concat(rowText);
-
-    rownum = rownum + 1;
-  }
-  
-  console.log(usergen);
-  return usergen;
 }
 
 function showSimilarity() {
-  readSequence = readWords(); 
-  _score = compareTwoStrings(readSequence, _ans); // update similarity score
+  readPoem(); 
+  // readSequence = readWords(); 
+  console.log(_usergen);
+  
+  _score = compareTwoStrings(_usergen, _ans); // update similarity score
   // map color to similarity and change background
   let new_fill = 'hsl(' + Math.floor(_score*240) + ',50%,80%)';
   fill(new_fill);
@@ -233,8 +189,7 @@ function sortOnValues(dict) {
 
 }
 
-// corpuses 
-// TODO add other corpuses (kafka?)
+// corpus handling
 
 function chooseWords(sentences) {
   n_words = 0;
@@ -371,4 +326,77 @@ function areArgsValid(mainString, targetStrings) {
 	if (!targetStrings.length) return false;
 	if (targetStrings.find(s => typeof s !== 'string')) return false;
 	return true;
+}
+
+// old reading method
+function readWords() {
+
+  // create dictionary for y coordinates of each word to read
+  let yDict = {};
+  for (let i = 0; i < _numwords; i++) {
+    let currWord = _words[i];
+    if (currWord.x > _canvX_start + 60){  // only read in relevant region
+      yDict[i] = currWord.y;
+
+    }
+  }
+
+  // sort
+  sortedY = sortOnValues(yDict);
+
+  // if there are no words to analyze
+  if (sortedY.length == 0) {
+    return ""
+  }
+
+  // console.log(sortedY.length);
+
+  // isolate rows
+  let startY = sortedY[0][1]; // smallest y value seen
+  // then go through row by row, moving 30 y at a time
+  let rownum = 0;
+  for (let y = startY; y < _canvY; y = y + 30) {
+
+    // find all words in current row
+    let currRowWords = {}
+    currRowWrds = []
+
+    for (let i = 0; i < sortedY.length; i++) {
+      if (sortedY[i][1] < y + 30 && sortedY[i][1] >= y) {
+        let ind = sortedY[i][0];
+        // it's going through this loop for all words but not saving in array
+        // currRowWords[parseInt(ind)] = _words[parseInt(ind)].x;
+        // currRowWrds.push([ind, _words[ind].x]);
+        
+      } 
+    }
+
+    if (Object.keys(currRowWords).length == 0) {
+      continue;
+    }
+    console.log(rownum);
+    console.log(Object.keys(currRowWords));
+    console.log(currRowWrds);
+
+    // sort words in current row by X
+    // sortedRow = sortOnValues(currRowWords);
+    
+    sortedRow = currRowWrds.sort(function(first, second) {
+      return second[1] - first[1];
+    });
+    console.log(sortedRow);
+    let rowText = "";
+    for (let i = 0; i < sortedRow.length; i++) {
+      currWordValue = _words[sortedRow[i][0]].name;
+      rowText = rowText.concat(" ")
+      rowText = rowText.concat(currWordValue);
+    }
+
+    usergen = usergen.concat(rowText);
+
+    rownum = rownum + 1;
+  }
+  
+  console.log(usergen);
+  return usergen;
 }
